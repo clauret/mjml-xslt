@@ -1,0 +1,83 @@
+/**
+ * Gradle script to HTML from MJML templates
+ */
+//apply plugin: 'java'
+
+// Requires for XSLT transformations
+import javax.xml.transform.stream.StreamResult
+import javax.xml.transform.stream.StreamSource
+import javax.xml.transform.TransformerFactory 
+import javax.xml.transform.Transformer 
+import javax.xml.transform.TransformerException
+
+buildscript {
+  repositories {
+    mavenCentral()
+  }
+  dependencies {
+    classpath 'net.sf.saxon:Saxon-HE:9.6.0-7'
+  }
+}
+
+repositories { 
+  mavenCentral()
+}
+
+configurations { 
+  xslt 
+} 
+
+dependencies { 
+  xslt 'net.sf.saxon:Saxon-HE:9.6.0-7'
+}
+
+// Process the sample files
+task processSamples(group: 'mjml') {
+  description = 'Generates all the HTML emails from the samples'
+//  classpath = configurations.xslt
+//  main = 'net.sf.saxon.Transform'
+//  inputs.dir 'src/sample/'
+//  outputs.file "$buildDir/html/"
+//  args (
+//    '-s:src/sample/',
+//    '-xsl:src/main/xslt/mjml.xsl',
+//    "-o:$buildDir/html/"
+//  )
+  doFirst {
+    file("$buildDir/html/").mkdirs();
+  }
+  inputs.file 'src/main/xslt/mjml.xsl'
+  inputs.dir 'src/main/xslt/mjml/'
+  inputs.dir 'src/sample/'
+  outputs.file "$buildDir/html/"
+  doLast {
+    File template = file('src/main/xslt/mjml.xsl');
+    File sampleDir = file('src/sample/');
+    File emailDir = file("$buildDir/html/");
+    emailDir.mkdirs();
+    Properties output = new Properties();
+    output.setProperty("encoding",   "utf-8");
+    output.setProperty("method",     "xhtml");
+    output.setProperty("media-type", "application/html+xml");
+//    output.setProperty("doctype-public", "-//W3C//DTD XHTML 1.0 Strict//EN");
+//    output.setProperty("doctype-system", "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd");
+    output.setProperty("indent",     "yes");
+    FileCollection samples = files { sampleDir.listFiles() };
+
+    def xsl = new StreamSource(template);
+    try {
+      Transformer transformer = TransformerFactory.newInstance().newTransformer(xsl);
+      transformer.outputProperties = output;
+      samples.each { sample ->
+        File f = new File(emailDir, sample.name.replace('.mjml', '.html'))
+        println 'Processing ' + sample.name + ' with ' + template.name + ' as '+f.name;
+        def xmlInput = new StreamSource(sample);
+        def xmlOutput = new StreamResult(f);
+        transformer.transform(xmlInput, xmlOutput);
+      }
+    } catch (TransformerException ex) {
+      println ex.getMessageAndLocation();
+    }
+
+  }
+}
